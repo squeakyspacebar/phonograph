@@ -1,43 +1,28 @@
 import argparse
-from keras.datasets import mnist
 from keras.models import load_model
-from keras.utils import np_utils
-import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path
-import random
 
-from model import Model
-
-
-def process_inputs(X):
-    # Reshape training data for input into the model.
-    X_shape = (X.shape[0],) + Model.input_shape
-    X = X.reshape(X_shape)
-
-    # Normalize inputs by scaling from 0-255 to 0-1.
-    X = X / 255
-
-    return X
-
-
-def process_labels(Y):
-    # Create one hot encodings from class label vectors.
-    Y = np_utils.to_categorical(Y)
-    return Y
+from model_factory import ModelFactory
 
 
 def main(args):
-    # Load MNIST data.
-    (X_train, Y_train), (X_test, Y_test) = mnist.load_data()
+    model_factory = ModelFactory()
+
+    # Load input data and data labels.
+    (X_train, Y_train), (X_test, Y_test) = model_factory.load_data()
 
     # Process input data.
-    X_train = process_inputs(X_train)
-    X_test  = process_inputs(X_test)
+    if X_train is not None:
+        X_train = model_factory.process_inputs(X_train)
+    if X_test is not None:
+        X_test  = model_factory.process_inputs(X_test)
 
     # Process input labels.
-    Y_test  = process_labels(Y_test)
-    Y_train = process_labels(Y_train)
+    if Y_train is not None:
+        Y_train = model_factory.process_labels(Y_train)
+    if Y_test is not None:
+        Y_test  = model_factory.process_labels(Y_test)
 
     model = None
     train_model = args.train
@@ -54,7 +39,7 @@ def main(args):
     
     if model is None:
         print('No model loaded. Creating new model.')
-        model = Model.create()
+        model = model_factory.create()
         train_model = True
 
     if train_model:
@@ -89,7 +74,7 @@ def main(args):
         print('Loading test data from {}.'.format(args.predict))
         test_filepath = args.predict
         test_data = np.genfromtxt(test_filepath, skip_header=1, delimiter=',')
-        test_data = np.reshape(test_data, (len(test_data),) + Model.input_shape)
+        test_data = np.reshape(test_data, (len(test_data),) + model.input_shape)
         print('Data loaded.')
 
         # Run the network against the testing data.
