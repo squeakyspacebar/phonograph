@@ -3,12 +3,19 @@ from keras.callbacks import ModelCheckpoint
 from keras.models import load_model
 import numpy as np
 from pathlib import Path
+import sys
 
-from model_factory import ModelFactory
+from factories.cnn_factory import CNNFactory
+from factories.lstm_factory import LSTMFactory
 
 
 def main(args):
-    model_factory = ModelFactory()
+    if args.model_type == 'cnn':
+        model_factory = CNNFactory()
+    elif args.model_type == 'lstm':
+        model_factory = LSTMFactory()
+    else:
+        raise ValueError('Invalid model type given.')
 
     # Load input data and data labels.
     (X_train, Y_train), (X_test, Y_test) = model_factory.load_data()
@@ -25,6 +32,8 @@ def main(args):
     if Y_test is not None:
         Y_test  = model_factory.process_labels(Y_test)
 
+    #from keras.callbacks import ModelCheckpoint
+    #from keras.models import load_model
     model = None
     train_model = args.train
 
@@ -61,18 +70,18 @@ def main(args):
 
         model.fit(X_train,
                   Y_train,
-                  validation_split=args.validation_split,
                   epochs=args.epochs,
                   batch_size=args.batch_size,
                   callbacks=callbacks_list,
                   verbose=2)
 
         # Evaluate model.
-        scores = model.evaluate(X_test, Y_test, verbose=2)
-        for i, label in enumerate(model.metrics_names):
-            print('{}: {}'.format(label, scores[i]))
-        print('Error rate: {:.2f}'.format(100 - (scores[1] * 100)))
-        print('Training completed.')
+        if X_test is not None and Y_test is not None:
+            scores = model.evaluate(X_test, Y_test, verbose=2)
+            for i, label in enumerate(model.metrics_names):
+                print('{}: {}'.format(label, scores[i]))
+            print('Error rate: {:.2f}'.format(100 - (scores[1] * 100)))
+            print('Training completed.')
 
         # Save model to file.
         if (args.save_model is not None):
@@ -116,6 +125,7 @@ if __name__ == "__main__":
     default_model_file  = '{}/default.h5'.format(default_model_dir)
     default_input_file  = '{}/test.csv'.format(default_input_dir)
     default_output_file = '{}/submission.csv'.format(default_output_dir)
+    model_types = ['cnn', 'lstm']
 
     # Command line argument parsing.
     parser = argparse.ArgumentParser(description='Run MNIST classifier '
@@ -135,6 +145,10 @@ if __name__ == "__main__":
             type=str,
             help='Save generated Keras model to file in HDF5 format.',
             metavar='file_path')
+    parser.add_argument('--model_type', '-y',
+            choices=model_types,
+            type=str,
+            help='The type of model to generate.')
     parser.add_argument('--predict', '-p',
             nargs='?',
             const=default_input_file,
@@ -166,5 +180,9 @@ if __name__ == "__main__":
 
     # Retrieve arguments passed in from command line.
     args = parser.parse_args()
+
+    if args.load_model is None and args.model_type is None:
+        print('Usage: --model_type must be given if --load_model is not used.')
+        sys.exit(1)
 
     main(args)
