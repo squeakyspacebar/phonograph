@@ -1,4 +1,5 @@
 import argparse
+from keras.callbacks import ModelCheckpoint
 from keras.models import load_model
 import numpy as np
 from pathlib import Path
@@ -49,11 +50,21 @@ def main(args):
         if args.batch_size is None or args.batch_size <= 0:
             args.batch_size = len(X_train)
 
+        # Define the checkpoints.
+        checkpoint_filepath = 'weights/weights-{epoch:02d}-{loss:.4f}.hdf5'
+        checkpoint = ModelCheckpoint(checkpoint_filepath,
+                                     monitor='loss',
+                                     verbose=1,
+                                     save_best_only=True,
+                                     mode='min')
+        callbacks_list = [checkpoint]
+
         model.fit(X_train,
                   Y_train,
                   validation_split=args.validation_split,
                   epochs=args.epochs,
                   batch_size=args.batch_size,
+                  callbacks=callbacks_list,
                   verbose=2)
 
         # Evaluate model.
