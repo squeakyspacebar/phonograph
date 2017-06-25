@@ -98,7 +98,13 @@ def main(args):
 
 
 if __name__ == "__main__":
-    default_model_file = 'model.h5'
+    default_model_dir   = 'models'
+    default_weight_dir  = 'weights'
+    default_input_dir   = 'inputs'
+    default_output_dir  = 'outputs'
+    default_model_file  = '{}/default.h5'.format(default_model_dir)
+    default_input_file  = '{}/test.csv'.format(default_input_dir)
+    default_output_file = '{}/submission.csv'.format(default_output_dir)
 
     # Command line argument parsing.
     parser = argparse.ArgumentParser(description='Run MNIST classifier '
@@ -120,13 +126,13 @@ if __name__ == "__main__":
             metavar='file_path')
     parser.add_argument('--predict', '-p',
             nargs='?',
-            const='test.csv',
+            const=default_input_file,
             type=str,
             help='Retrieve input data to perform predictions on from file.',
             metavar='file_path')
     parser.add_argument('--output', '-o',
             nargs='?',
-            const='submission.csv',
+            const=default_output_file,
             type=str,
             help='Output final predictions to file in CSV format.',
             metavar='file_path')
