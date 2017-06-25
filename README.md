@@ -4,8 +4,13 @@
 
 This is a simple command-line tool I hacked together to make it easier to train
 Keras models for the [Kaggle Digit Recognizer challenge](https://www.kaggle.com/c/digit-recognizer).
-Currently tied to processing the MNIST database of handwritten digits fairly
-specifically. Written in Python 3.
+Expanded to include some simple mucking around with LSTM networks. Written in
+Python 3.
+
+Inspired by Jason Brownlee's great Keras tutorial articles:
+
+- [Handwritten Digit Recognition](http://machinelearningmastery.com/handwritten-digit-recognition-using-convolutional-neural-networks-python-keras/)
+- [Text Generation](http://machinelearningmastery.com/text-generation-lstm-recurrent-neural-networks-python-keras/)
 
 ## Getting Started
 
@@ -56,14 +61,18 @@ default.
 ### Creating a new model
 
 If no model file of a pre-existing Keras model is provided, `phonograph.py`
-uses whatever model `Model.create()` provides. You can define the model you want
-to use in `model.py` (just make sure `Model.create()` is the method that returns
-the model).
+uses whatever model is provided by the configured factory object. If you aren't
+loading a pre-existing model, you'll have to specify which model type you want
+to use with the `--model_type` or `-y` option. There are currently two built-in
+model factories for these types of networks:
+
+- `'cnn'` Convolutional
+- `'lstm'` Long Short Term Memory
 
 After creating a model, it will automatically train, whether or not the option
 flag is set.
 
-Saving the generated model works as mentioned in the above section.
+Saving the generated model to file works as mentioned in the above section.
 
 ### Loading test data
 
@@ -89,6 +98,28 @@ You can set the training parameters by using these three options:
 for validation.
 - `--epochs <integer>` This sets the number of epochs to train for.
 - `--batch-size <integer>` This sets the training batch size.
+
+## Modifying the Keras models
+
+### Editing the models
+
+The model factories are defined in the `factories` subdirectory and implement a
+method called `create()`. The actual Keras model being used should be defined
+within that method, so feel free to edit them as you wish.
+
+### Adding your own custom models
+
+The model factories are defined in the `factories` subdirectory and inherit
+from `ModelFactory` in `model_factory.py` as an interface. Please see how the
+models created are used in `phonograph.py` and double-check against
+`model_factory.py` to create a new model factory.
+
+I don't have any slick importing setups, so you simply `from factories import
+SomeFactory()` in `phonograph.py`.
+
+You can add support for your new factory by editing the if case block at the
+beginning of `main()` and the list `model_types` at the bottom of
+`phonograph.py`, before the argparse block begins.
 
 ## Extra Notes
 
