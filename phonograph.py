@@ -1,21 +1,19 @@
 import argparse
+import importlib
 from keras.callbacks import ModelCheckpoint
 from keras.models import load_model
 import numpy as np
 from pathlib import Path
 import sys
 
-from factories.cnn_factory import CNNFactory
-from factories.lstm_factory import LSTMFactory
-
 
 def main(args):
-    if args.model_type == 'cnn':
-        model_factory = CNNFactory()
-    elif args.model_type == 'lstm':
-        model_factory = LSTMFactory()
-    else:
-        raise ValueError('Invalid model type given.')
+    # Load the model factory module if given.
+    if (args.model is not None):
+        module_specifier = 'factories.{}'.format(args.model)
+        factory_module = importlib.import_module(module_specifier)
+        factory_class = getattr(factory_module, 'Factory')
+        model_factory = factory_class()
 
     # Load input data and data labels.
     (X_train, Y_train), (X_test, Y_test) = model_factory.load_data()
@@ -32,8 +30,6 @@ def main(args):
     if Y_test is not None:
         Y_test  = model_factory.process_labels(Y_test)
 
-    #from keras.callbacks import ModelCheckpoint
-    #from keras.models import load_model
     model = None
     train_model = args.train
 
@@ -80,7 +76,7 @@ def main(args):
             scores = model.evaluate(X_test, Y_test, verbose=2)
             for i, label in enumerate(model.metrics_names):
                 print('{}: {}'.format(label, scores[i]))
-            print('Error rate: {:.2f}'.format(100 - (scores[1] * 100)))
+            print('error: {:.2f}'.format(1 - scores[1]))
             print('Training completed.')
 
         # Save model to file.
@@ -145,10 +141,11 @@ if __name__ == "__main__":
             type=str,
             help='Save generated Keras model to file in HDF5 format.',
             metavar='file_path')
-    parser.add_argument('--model_type', '-y',
-            choices=model_types,
+    parser.add_argument('--model', '-m',
+            nargs='?',
             type=str,
-            help='The type of model to generate.')
+            help='Name of factory module to import.',
+            metavar='module_name')
     parser.add_argument('--predict', '-p',
             nargs='?',
             const=default_input_file,
@@ -181,8 +178,8 @@ if __name__ == "__main__":
     # Retrieve arguments passed in from command line.
     args = parser.parse_args()
 
-    if args.load_model is None and args.model_type is None:
-        print('Usage: --model_type must be given if --load_model is not used.')
+    if args.load_model is None and args.model is None:
+        print('Usage: --model must be given if --load_model is not used.')
         sys.exit(1)
 
     main(args)

@@ -8,7 +8,7 @@ import numpy as np
 from model_factory import ModelFactory
 
 
-class LSTMFactory(ModelFactory):
+class Factory(ModelFactory):
     def __init__(self):
         self.input_shape = None
         self.seq_length = 100

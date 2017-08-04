@@ -12,19 +12,26 @@ from keras.utils import np_utils
 from model_factory import ModelFactory
 
 
-class CNNFactory(ModelFactory):
+class EmptyError(Exception):
+    pass
+
+
+class Factory(ModelFactory):
     def __init__(self):
         # Set the expected shape of input here.
-        self.input_shape = (1, 28, 28)
+        # TensorFlow ordering. Reverse for use with Theano.
+        self.input_shape = (28, 28, 1)
         self.n_classes = None
 
     def create(self):
+        if (self.n_classes is None or self.n_classes == 0):
+            raise EmptyError('The number of classifications must be given.')
+
         # Define model.
         model = Sequential()
 
-        model.add(ZeroPadding2D((1, 1), input_shape=self.input_shape))
-        model.add(Conv2D(32, (5, 5), activation='relu'))
-        model.add(Conv2D(32, (5, 5), activation='relu'))
+        model.add(Conv2D(32, (5, 5), activation='relu',
+            input_shape=self.input_shape))
         model.add(MaxPooling2D(pool_size=(2, 2)))
         model.add(Dropout(0.2))
         model.add(Flatten())
