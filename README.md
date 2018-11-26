@@ -11,10 +11,14 @@ Inspired by Jason Brownlee's great Keras tutorial articles:
 
 ## Getting Started
 
-If you're interested in using this code, it probably doesn't need to be said, but use [Pip](https://pypi.python.org/pypi/pip) to install the Python package dependencies:
+It's recommended you use a virtual environment with this project, either through [virtualenv](https://virtualenv.pypa.io/en/latest/), [virtualenvwrapper](https://virtualenvwrapper.readthedocs.io/en/latest/), or Python 3's included [venv](https://docs.python.org/3/library/venv.html) module.
+
+The dependencies in `requirements.txt` don't explicitly include a [backend for Keras](https://keras.io/backend/), so you'll have to install Tensorflow or Theano manually and configure Keras to use it if necessary.
+
+Use [Pip](https://pypi.python.org/pypi/pip) to install the Python package dependencies:
 
 ```
-pip3 install requirements.txt
+pip3 install -r requirements.txt
 ```
 
 You can call the main script from the command line:
@@ -29,12 +33,6 @@ Command-line help is provided by:
 python3 phonograph.py --help
 ```
 
-An example — in long format — of a standard command:
-
-```
-python3 phonograph.py --load-model shiny_model01.h5 --save-model shiny_model02.h5 --train --predict --output --validation-split 0.1 --epochs 10 --batch-size 32
-```
-
 ### Using a pre-existing model
 
 More about saving/loading Keras models [here](https://keras.io/getting-started/faq/#how-can-i-save-a-keras-model).
@@ -45,16 +43,30 @@ If the `--train` or `-t` flag is set, the model will go through a session of tra
 
 From there, if the `--save-model` or `-s` option is provided, it will save the updated model to the path given, or `model.h5` in the current directory by default.
 
-### Using a new model
+An example command to continue training from an existing model:
 
-If no model file of a pre-existing Keras model is provided, `phonograph.py` uses whatever model is provided by the configured model factory. If you aren't loading a pre-existing model, you'll have to specify which model type you want to use with the `--model` or `-m` option. See [the section on adding your own custom models](#adding-your-own-custom-models) for further details. There are currently two built-in options:
+```
+python3 phonograph.py --load-model shiny_model01.h5 --save-model shiny_model02.h5 --train --predict --output --validation-split 0.1 --epochs 10 --batch-size 32
+```
+
+### Training a new model
+
+If no pre-existing model *file* is provided via the `--load-model` option, you'll have to specify which model factory you want to generate a new model from with the `--model` or `-m` option. Phonograph uses factories to provide the Keras model objects it uses. See [the section on adding new models](#adding-new-models) for further details.
+
+There are currently two built-in options:
 
 - `'cnn'` Convolutional
 - `'lstm'` Long Short Term Memory
 
-After creating a model, it will automatically train, whether or not the option flag is set.
+When selecting an untrained model, it will train by default whether or not the `--train` or `-t` option flag is set.
 
-Saving the generated model to file works as mentioned in the above section.
+Saving the generated model to file works as mentioned using the `--save-model` or `-s` option.
+
+An example command to train a new model:
+
+```
+python3 phonograph.py --model cnn --save-model --validation-split 0.1 --epochs 10 --batch-size 32
+```
 
 ### Loading test data
 
@@ -86,7 +98,7 @@ The model factories are defined in the `factories` subdirectory and should inher
 
 Each model factory class should implement a method called `create()`. The actual Keras model being used should be defined within that method, and free to edit them as you wish.
 
-### Adding your own custom models
+### Adding new models
 
 Create a model factory class called `Factory` that inherits from `ModelFactory` in a new file, then write the implementations for each required method. You may use whatever filenames you wish, but they are ultimately the labels of the models you can specify from the command-line; for example, to create and use a model called 'foobar', create a model factory in `foobar.py` and then specify the option `--model foobar` when running `phonograph.py`. Please see how the models created by the factories are used in `phonograph.py` and double-check against `model_factory.py` when creating a new model factory for more insight.
 
