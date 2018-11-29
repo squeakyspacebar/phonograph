@@ -48,7 +48,8 @@ def main(args):
     if args.load_model is not None:
         model_path = Path(args.load_model)
         print('Loading model from {}.'.format(model_path))
-        if (model_path.is_file()):
+
+        if model_path.is_file():
             model = load_model(str(model_path))
             print('Model loaded.')
         else:
@@ -64,7 +65,7 @@ def main(args):
                 print('Loading model weights.')
                 model.load_weights(args.load_weights)
                 print('Weights loaded.')
-            except:
+            except ImportError:
                 pass
 
         # Attempt to call finetuning if implemented.
@@ -74,7 +75,7 @@ def main(args):
                 model = model_factory.finetune(train_generator)
                 print('Finetuning completed.')
             except AttributeError as e:
-               raise Exception('Finetuning not implemented for model.') from e
+                raise Exception('Finetuning not implemented for model.') from e
         train_model = True
 
     if args.summary:
@@ -155,35 +156,43 @@ def main(args):
                 args.predict = DEFAULT_INPUT_FILE
 
             # Load testing data.
-            print('Loading test data from {}.'.format(args.predict))
-            test_filepath = args.predict
-            test_data = np.genfromtxt(test_filepath, skip_header=1, delimiter=',')
-            test_data = np.reshape(test_data, (len(test_data),) + model.input_shape)
-            print('Data loaded.')
+            print('Attempting to load test data from {}.'.format(args.predict))
+            test_data_path = Path(args.predict)
 
-            # Run the network against the testing data.
-            print('Processing test data.')
-            raw_preds = model.predict(test_data, verbose=1)
-            print('Data processed.')
+            if not test_data_path.exists():
+                raise ValueError('No valid data found at {}.'.format(
+                    test_data_path))
+
+            if test_data_path.is_file():
+                test_data = np.genfromtxt(test_data_path, skip_header=1, delimiter=',')
+                test_data = np.reshape(
+                    test_data,
+                    (len(test_data),) + model.input_shape[1:])
+                print('Data loaded.')
+
+                # Run the network against the testing data.
+                print('Processing test data.')
+                raw_preds = model.predict(test_data, verbose=1)
+                print('Data processed.')
+            elif test_data_path.is_dir():
+                test_datagen = ImageDataGenerator()
+
+                test_generator = test_datagen.flow_from_directory(
+                    test_path,
+                    target_size=(224, 224),
+                    batch_size=args.batch_size,
+                    class_mode=None)
+
+                test_steps = 12500 / args.batch_size
+
+                print('Processing test data.')
+                raw_preds = model.predict_generator(
+                    test_generator,
+                    test_steps)
+                print('Data processed.')
         except:
-            test_path = 'data/test'
-            print('Loading test data from {}.'.format(test_path))
-
-            test_datagen = ImageDataGenerator()
-
-            test_generator = test_datagen.flow_from_directory(
-                test_path,
-                target_size=(224,224),
-                batch_size=args.batch_size,
-                class_mode=None)
-
-            test_steps = 12500 / args.batch_size
-
-            print('Processing test data.')
-            raw_preds = model.predict_generator(
-                test_generator,
-                test_steps)
-            print('Data processed.')
+            print('Failed. Unable to load test data.')
+            raise
 
     # Save predictions to file.
     if args.output is not None:
@@ -255,7 +264,9 @@ def create_parser():
         '--disable-checkpoints',
         '-d',
         action='store_true',
-        help='Prevent saving generated weights to file in HDF5 format after each epoch.')
+        help=(
+            'Prevent saving generated weights to file in HDF5 format after '
+            'each epoch.'))
     parser.add_argument(
         '--summary',
         '-y',
