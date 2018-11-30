@@ -70,13 +70,13 @@ python3 phonograph.py --model cnn --save-model --validation-split 0.1 --epochs 1
 
 ### Loading test data
 
-If the `--predict` or `-p` option is set, the script will load the test data from the file at the path provided, or `test.csv` in the current directory by default.
+If the `--predict` or `-p` option is set, the script will load the test data from the file at the path provided, or `data/test.csv` by default.
 
 The script then runs `model.predict()` on the test data.
 
 ### Saving predictions
 
-If the `--output` or `-o` option is set, the script will save the generated predictions to the file at the path provided, or `submission.csv` in the current directory by default.
+If the `--output` or `-o` option is set, the script will save the generated predictions to the file at the path provided, or `results/submission.csv` by default.
 
 You can then submit your shiny new prediction set to Kaggle.
 
