@@ -13,36 +13,38 @@ from keras.preprocessing.image import ImageDataGenerator
 import numpy as np
 
 
+def get_model_factory(model):
+    module_specifier = 'factories.{}'.format(model)
+    factory_module = importlib.import_module(module_specifier)
+    factory_class = getattr(factory_module, 'Factory')
+    model_factory = factory_class()
+
+    return model_factory
+
+
 def main(args):
     model = None
     train_model = args.train
 
     # Load the model factory.
-    if args.model is not None:
-        module_specifier = 'factories.{}'.format(args.model)
-        factory_module = importlib.import_module(module_specifier)
-        factory_class = getattr(factory_module, 'Factory')
-        model_factory = factory_class()
-        use_generators = False
+    if args.model is not None or args.evaluate is not None:
+        model_type = None
+        if args.model is not None:
+            model_type = args.model
+        else:
+            model_type = args.evaluate
 
-        print('Preparing datasets.')
+        model_factory = get_model_factory(model_type)
+        model_factory.batch_size = args.batch_size
+
+        print('Creating dataset generators.')
         try:
-            # Load input data and data labels.
-            (x_train, y_train), (x_test, y_test) = model_factory.load_data()
-
-            # Process input data.
-            x_train = model_factory.process_inputs(x_train)
-            x_test = model_factory.process_inputs(x_test)
-
-            # Process input labels.
-            y_train = model_factory.process_labels(y_train)
-            y_test = model_factory.process_labels(y_test)
-            print('Datasets created.')
-        except AttributeError:
-            print('No data loading method found on factory. Trying generators.')
-            train_generator, valid_generator = model_factory.get_generators()
-            use_generators = True
+            (
+                training_generator,
+                validation_generator) = model_factory.get_generators()
             print('Generators created on datasets.')
+        except Exception as e:
+            raise Exception('Unable to create generators.') from e
 
     # Load preexisting model or create a new model.
     if args.load_model is not None:
@@ -56,8 +58,9 @@ def main(args):
             print('Model not found.')
 
     if model is None:
-        print('No model loaded. Creating new model.')
+        print('Creating new model.')
         model = model_factory.create()
+        train_model = True
 
         # Attempt to load model weights.
         if args.load_weights is not None:
@@ -71,12 +74,11 @@ def main(args):
         # Attempt to call finetuning if implemented.
         if args.finetune:
             try:
-                print('Calling finetuning method.')
-                model = model_factory.finetune(train_generator)
+                print('Finetuning.')
+                model = model_factory.finetune(training_generator)
                 print('Finetuning completed.')
             except AttributeError as e:
                 raise Exception('Finetuning not implemented for model.') from e
-        train_model = True
 
     if args.summary:
         model.summary()
@@ -97,57 +99,41 @@ def main(args):
 
         print('Training model.')
 
-        if use_generators:
-            model.fit_generator(
-                train_generator,
-                steps_per_epoch=model_factory.train_steps,
-                epochs=model_factory.epochs,
-                validation_data=valid_generator,
-                validation_steps=model_factory.valid_steps)
-        else:
-            # Set default batch size to size of training set.
-            if args.batch_size is None or args.batch_size <= 0:
-                args.batch_size = len(x_train)
+        # Calculate default number of steps for each training epoch.
+        training_steps = model_factory.training_samples / args.batch_size
 
-            model.fit(
-                x_train,
-                y_train,
-                epochs=args.epochs,
-                batch_size=args.batch_size,
-                callbacks=callbacks_list,
-                verbose=2)
-
-            # Evaluate model.
-            scores = model.evaluate(x_test, y_test, verbose=2)
-            for index, label in enumerate(model.metrics_names):
-                print('{}: {}'.format(label, scores[index]))
-            print('error: {:.2f}'.format(1 - scores[1]))
+        model.fit_generator(
+            training_generator,
+            steps_per_epoch=training_steps,
+            epochs=args.epochs,
+            callbacks=callbacks_list)
 
         print('Training completed.')
 
         # Save model to file.
         if args.save_model is not None:
+            # Set actual value for default save path.
             if args.save_model == 'default':
                 args.save_model = '{}/model-{}-weights.hdf5'.format(
                     DEFAULT_MODEL_DIR,
                     args.model)
-            print('Saving model to file at {}.'.format(args.save_model))
+
+            print('Saving model.'.format(args.save_model))
             model.save_weights(args.save_model)
+            print('Model saved to file at {}.'.format(args.save_model))
 
-    if args.evaluate:
-        valid_generator = ImageDataGenerator()
+    if args.evaluate is not None:
+        print('Evaluating model.')
+        validation_steps = model_factory.validation_samples / args.batch_size
 
-        valid_generator.flow_from_directory(
-            'data/validation',
-            target_size=(224, 224),
-            batch_size=args.batch_size,
-            class_mode='categorical')
+        results = model.evaluate_generator(
+            validation_generator,
+            validation_steps)
 
-        valid_steps = 5000 // args.batch_size
+        for i, result in enumerate(results):
+            print('{}: {}'.format(model.metrics_names[i], result))
 
-        model.evaluate_generator(
-            valid_generator,
-            valid_steps)
+        print('Evaluation finished.')
 
     # Make predictions on test data.
     if args.predict is not None:
@@ -156,7 +142,7 @@ def main(args):
                 args.predict = DEFAULT_INPUT_FILE
 
             # Load testing data.
-            print('Attempting to load test data from {}.'.format(args.predict))
+            print('Loading test data from {}.'.format(args.predict))
             test_data_path = Path(args.predict)
 
             if not test_data_path.exists():
@@ -171,9 +157,9 @@ def main(args):
                 print('Data loaded.')
 
                 # Run the network against the testing data.
-                print('Processing test data.')
-                raw_preds = model.predict(test_data, verbose=1)
-                print('Data processed.')
+                print('Running predictions.')
+                raw_predictions = model.predict(test_data, verbose=1)
+                print('Predictions finished.')
             elif test_data_path.is_dir():
                 test_datagen = ImageDataGenerator()
 
@@ -185,27 +171,29 @@ def main(args):
 
                 test_steps = 12500 / args.batch_size
 
-                print('Processing test data.')
-                raw_preds = model.predict_generator(
+                print('Running predictions.')
+                raw_predictions = model.predict_generator(
                     test_generator,
                     test_steps)
-                print('Data processed.')
+                print('Predictions finished.')
         except:
             print('Failed. Unable to load test data.')
             raise
 
-    # Save predictions to file.
-    if args.output is not None:
-        print('Preparing prediction data.')
-        predictions = {}
-        for index, prediction in enumerate(raw_preds):
-            predictions[index + 1] = np.argmax(prediction)
+        # Save predictions to file.
+        if args.output is not None:
+            print('Condensing predictions.')
+            predictions = {}
+            for index, prediction in enumerate(raw_predictions):
+                predictions[index + 1] = np.argmax(prediction)
 
-        with open(args.output, 'w') as savefile:
-            savefile.write('ImageId,Label\n')
-            for key, prediction in predictions.items():
-                savefile.write('{},{}\n'.format(key, prediction))
-        savefile.close()
+            print('Saving prediction data to file.')
+            with open(args.output, 'w') as savefile:
+                savefile.write('ImageId,Label\n')
+                for key, prediction in predictions.items():
+                    savefile.write('{},{}\n'.format(key, prediction))
+            print('Predictions saved to file at {}.'.format(args.output))
+            savefile.close()
 
 
 def create_parser():
@@ -225,8 +213,8 @@ def create_parser():
         '-m',
         nargs='?',
         type=str,
-        help='Name of factory module to import.',
-        metavar='module_name')
+        help='Name of model factory module to import.',
+        metavar='model_name')
     parser.add_argument(
         '--load-weights',
         '-w',
@@ -274,8 +262,10 @@ def create_parser():
         help='Show summary of model before training.')
     parser.add_argument(
         '--evaluate',
-        action='store_true',
-        help='Evaluate model.')
+        nargs='?',
+        type=str,
+        help='Evaluate using the given model type.',
+        metavar='evaluation_model')
     parser.add_argument(
         '--predict',
         '-p',
@@ -313,8 +303,7 @@ def create_parser():
         nargs='?',
         const=32,
         type=int,
-        help='Size of batches to use during training. Defaults to size '
-             'of entire training set.',
+        help='Size of batches to use during training. Defaults to 32.',
         metavar='batch_size')
 
     return parser
@@ -337,8 +326,8 @@ def parse_args(parser):
 if __name__ == "__main__":
     DEFAULT_MODEL_DIR = 'models'
     DEFAULT_WEIGHT_DIR = 'weights'
-    DEFAULT_INPUT_DIR = 'inputs'
-    DEFAULT_OUTPUT_DIR = 'outputs'
+    DEFAULT_INPUT_DIR = 'data'
+    DEFAULT_OUTPUT_DIR = 'results'
     DEFAULT_MODEL_FILE = '{}/default.h5'.format(DEFAULT_MODEL_DIR)
     DEFAULT_INPUT_FILE = '{}/test.csv'.format(DEFAULT_INPUT_DIR)
     DEFAULT_OUTPUT_FILE = '{}/submission.csv'.format(DEFAULT_OUTPUT_DIR)

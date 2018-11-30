@@ -14,9 +14,13 @@ class ModelFactory(ABC):
         pass
 
     @abstractmethod
-    def process_inputs(self, X):
+    def get_generators(self):
         pass
 
     @abstractmethod
-    def process_labels(self, Y):
+    def process_inputs(self, features):
+        pass
+
+    @abstractmethod
+    def process_labels(self, labels):
         pass
