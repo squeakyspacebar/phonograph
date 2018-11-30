@@ -2,3 +2,4 @@ argparse
 h5py
 keras
 numpy
+pillow
